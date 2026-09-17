@@ -27,9 +27,17 @@ export const BookingPage: React.FC = () => {
 
   // Hide Telegram MainButton (we use custom one)
   useEffect(() => {
-    tg?.MainButton?.hide();
-    return () => {
+    try {
       tg?.MainButton?.hide();
+    } catch (e) {
+      // ignore in dev environment
+    }
+    return () => {
+      try {
+        tg?.MainButton?.hide();
+      } catch (e) {
+        // ignore
+      }
     };
   }, []);
 
@@ -90,7 +98,7 @@ export const BookingPage: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-tg-bg px-4 pt-6 pb-32">
+    <div className="min-h-screen bg-tg-bg px-4 pt-6 pb-8">
       {/* Back button */}
       <button
         onClick={() => navigate(-1)}
@@ -186,35 +194,41 @@ export const BookingPage: React.FC = () => {
         </div>
       )}
 
-      {/* Sticky Bottom Button */}
-      <div className="fixed bottom-0 left-0 right-0 z-30 pointer-events-none">
-        <div className="max-w-[480px] mx-auto pointer-events-auto">
-          <div
-            className="px-4 pt-3 pb-[calc(env(safe-area-inset-bottom, 0px) + 12px)]"
-            style={{
-              background: 'linear-gradient(to top, var(--tg-theme-bg-color, #1a1a1a) 70%, transparent 100%)',
-            }}
-          >
-            <button
-              onClick={handleBookingClick}
-              disabled={!isButtonActive}
-              className={`w-full py-4 rounded-2xl font-bold text-base transition-all duration-300 ${
-                isButtonActive
-                  ? 'bg-barber-gold text-white shadow-lg shadow-barber-gold/30 active:scale-[0.98]'
-                  : 'bg-barber-card text-gray-500 border border-barber-border cursor-not-allowed'
-              }`}
-            >
-              {time ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span>ЗАПИСАТЬСЯ</span>
-                  <span className="text-white/80 font-medium">на {time}</span>
-                </span>
-              ) : (
-                'Выберите время'
-              )}
-            </button>
-          </div>
-        </div>
+      {/* Bottom Button */}
+      <div style={{ marginTop: '48px', marginBottom: '32px' }}>
+        <button
+          onClick={handleBookingClick}
+          disabled={!isButtonActive}
+          style={{
+            width: '100%',
+            padding: '20px',
+            borderRadius: '16px',
+            fontWeight: 'bold',
+            fontSize: '18px',
+            letterSpacing: '0.5px',
+            transition: 'all 0.3s',
+            backgroundColor: isButtonActive ? '#c9a96e' : '#333333',
+            color: isButtonActive ? '#ffffff' : '#999999',
+            border: isButtonActive ? 'none' : '2px solid #444444',
+            cursor: isButtonActive ? 'pointer' : 'not-allowed',
+            boxShadow: isButtonActive ? '0 10px 30px rgba(201, 169, 110, 0.4)' : 'none',
+            display: 'block',
+            textAlign: 'center',
+          }}
+        >
+          {time ? (
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '18px' }}>✓</span>
+              <span>ЗАПИСАТЬСЯ</span>
+              <span style={{ color: 'rgba(255, 255, 255, 0.9)', fontWeight: '600' }}>на {time}</span>
+            </span>
+          ) : (
+            <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '20px' }}>📅</span>
+              <span>Выберите время</span>
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Confirmation Modal */}

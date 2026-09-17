@@ -8,19 +8,18 @@ import { getUser } from '../lib/telegram';
 
 export const ServiceSelectPage: React.FC = () => {
   const navigate = useNavigate();
-  const { setService, reset } = useBookingStore();
+  const { setService } = useBookingStore();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const user = getUser();
 
   useEffect(() => {
-    // Reset booking state on main page
-    reset();
+    // Load services (don't reset store to preserve state when navigating back)
     api.getServices().then((data) => {
       setServices(data);
       setLoading(false);
     });
-  }, [reset]);
+  }, []);
 
   const handleSelect = (service: Service) => {
     setService(service);
