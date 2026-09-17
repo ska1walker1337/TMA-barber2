@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
@@ -7,6 +7,7 @@ import { api } from '../api/mockApi';
 import { useBookingStore } from '../store/bookingStore';
 import { Calendar } from '../components/Calendar';
 import { TimeSlots } from '../components/TimeSlots';
+import { ConfirmModal } from '../components/ConfirmModal';
 import { getUser, hapticFeedback, tg } from '../lib/telegram';
 
 export const BookingPage: React.FC = () => {
@@ -14,6 +15,7 @@ export const BookingPage: React.FC = () => {
   const { service, master, date, time, setDate, setTime, setLastBooking } = useBookingStore();
   const [slots, setSlots] = useState<TimeSlot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Redirect if no service/master selected
@@ -22,6 +24,14 @@ export const BookingPage: React.FC = () => {
       navigate('/');
     }
   }, [service, master, navigate]);
+
+  // Hide Telegram MainButton (we use custom one)
+  useEffect(() => {
+    tg?.MainButton?.hide();
+    return () => {
+      tg?.MainButton?.hide();
+    };
+  }, []);
 
   // Load slots when date changes
   useEffect(() => {
@@ -35,12 +45,16 @@ export const BookingPage: React.FC = () => {
     }
   }, [date, master, service, setTime]);
 
-  // Configure Telegram MainButton
-  const handleBooking = useCallback(async () => {
+  const handleBookingClick = () => {
+    if (!time || !service || !master) return;
+    hapticFeedback.medium();
+    setIsModalOpen(true);
+  };
+
+  const handleConfirm = async () => {
     if (!service || !master || !date || !time || submitting) return;
     
     setSubmitting(true);
-    hapticFeedback.medium();
 
     try {
       const user = getUser();
@@ -55,52 +69,18 @@ export const BookingPage: React.FC = () => {
 
       setLastBooking(booking);
       hapticFeedback.success();
+      setIsModalOpen(false);
       navigate('/success');
     } catch (error) {
       hapticFeedback.error();
       setSubmitting(false);
     }
-  }, [service, master, date, time, submitting, navigate, setLastBooking]);
-
-  // Update MainButton
-  useEffect(() => {
-    const mainButton = tg?.MainButton;
-    if (!mainButton) return;
-
-    if (time && service) {
-      mainButton.setParams({
-        text: `Записаться на ${time}`,
-        color: '#c9a96e',
-        text_color: '#ffffff',
-        is_active: true,
-        is_visible: true,
-      });
-      mainButton.onClick(handleBooking);
-    } else {
-      mainButton.setParams({
-        text: 'Выберите время',
-        color: '#333333',
-        text_color: '#666666',
-        is_active: false,
-        is_visible: true,
-      });
-    }
-
-    return () => {
-      mainButton.offClick(handleBooking);
-    };
-  }, [time, service, handleBooking]);
-
-  // Hide MainButton on unmount
-  useEffect(() => {
-    return () => {
-      tg?.MainButton?.hide();
-    };
-  }, []);
+  };
 
   if (!service || !master) return null;
 
   const formattedDate = date ? format(new Date(date), 'd MMMM, EEEE', { locale: ru }) : '';
+  const isButtonActive = !!time;
 
   // Progress steps
   const steps = [
@@ -110,7 +90,7 @@ export const BookingPage: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-tg-bg px-4 pt-6 pb-24">
+    <div className="min-h-screen bg-tg-bg px-4 pt-6 pb-32">
       {/* Back button */}
       <button
         onClick={() => navigate(-1)}
@@ -205,6 +185,52 @@ export const BookingPage: React.FC = () => {
           <p className="text-gray-400 text-sm">Выберите дату для просмотра свободных слотов</p>
         </div>
       )}
+
+      {/* Sticky Bottom Button */}
+      <div className="fixed bottom-0 left-0 right-0 z-30 pointer-events-none">
+        <div className="max-w-[480px] mx-auto pointer-events-auto">
+          <div
+            className="px-4 pt-3 pb-[calc(env(safe-area-inset-bottom, 0px) + 12px)]"
+            style={{
+              background: 'linear-gradient(to top, var(--tg-theme-bg-color, #1a1a1a) 70%, transparent 100%)',
+            }}
+          >
+            <button
+              onClick={handleBookingClick}
+              disabled={!isButtonActive}
+              className={`w-full py-4 rounded-2xl font-bold text-base transition-all duration-300 ${
+                isButtonActive
+                  ? 'bg-barber-gold text-white shadow-lg shadow-barber-gold/30 active:scale-[0.98]'
+                  : 'bg-barber-card text-gray-500 border border-barber-border cursor-not-allowed'
+              }`}
+            >
+              {time ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span>ЗАПИСАТЬСЯ</span>
+                  <span className="text-white/80 font-medium">на {time}</span>
+                </span>
+              ) : (
+                'Выберите время'
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Confirmation Modal */}
+      <ConfirmModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onConfirm={handleConfirm}
+        serviceIcon={service.icon}
+        serviceName={service.name}
+        masterName={master.name}
+        date={formattedDate}
+        time={time || ''}
+        price={service.price}
+        duration={service.duration_minutes}
+        loading={submitting}
+      />
     </div>
   );
 };
