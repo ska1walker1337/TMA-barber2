@@ -48,32 +48,45 @@ declare global {
 export const tg = window.Telegram?.WebApp;
 
 export const initTelegram = () => {
-  if (tg) {
-    tg.ready();
-    tg.expand();
-    tg.setHeaderColor('#1a1a1a');
-    tg.setBackgroundColor('#1a1a1a');
+  try {
+    if (tg) {
+      tg.ready();
+      tg.expand();
+      try { tg.setHeaderColor('#1a1a1a'); } catch(e) { console.log('setHeaderColor error:', e); }
+      try { tg.setBackgroundColor('#1a1a1a'); } catch(e) { console.log('setBackgroundColor error:', e); }
+    }
+  } catch (e) {
+    console.log('Telegram WebApp init error:', e);
   }
 };
 
 export const getUser = () => {
-  return tg?.initDataUnsafe?.user || {
-    id: 123456789,
-    first_name: 'Гость',
-    last_name: '',
-    username: 'guest',
-  };
+  try {
+    return tg?.initDataUnsafe?.user || {
+      id: 123456789,
+      first_name: 'Гость',
+      last_name: '',
+      username: 'guest',
+    };
+  } catch (e) {
+    return {
+      id: 123456789,
+      first_name: 'Гость',
+      last_name: '',
+      username: 'guest',
+    };
+  }
 };
 
 export const hapticFeedback = {
-  light: () => tg?.HapticFeedback?.impactOccurred('light'),
-  medium: () => tg?.HapticFeedback?.impactOccurred('medium'),
-  heavy: () => tg?.HapticFeedback?.impactOccurred('heavy'),
-  success: () => tg?.HapticFeedback?.notificationOccurred('success'),
-  error: () => tg?.HapticFeedback?.notificationOccurred('error'),
-  selection: () => tg?.HapticFeedback?.selectionChanged(),
+  light: () => { try { tg?.HapticFeedback?.impactOccurred('light'); } catch(e) {} },
+  medium: () => { try { tg?.HapticFeedback?.impactOccurred('medium'); } catch(e) {} },
+  heavy: () => { try { tg?.HapticFeedback?.impactOccurred('heavy'); } catch(e) {} },
+  success: () => { try { tg?.HapticFeedback?.notificationOccurred('success'); } catch(e) {} },
+  error: () => { try { tg?.HapticFeedback?.notificationOccurred('error'); } catch(e) {} },
+  selection: () => { try { tg?.HapticFeedback?.selectionChanged(); } catch(e) {} },
 };
 
 export const closeApp = () => {
-  tg?.close();
+  try { tg?.close(); } catch(e) {}
 };
