@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 
 declare global {
   interface Window {
@@ -17,38 +17,115 @@ const masters = [
   { id: 2, name: 'Иван', rating: 4.8, experience: 5, specialties: ['Креатив', 'Длинные волосы', 'Камуфляж'] },
 ];
 
+// Мок-записи (занятые слоты)
+const today = new Date();
+const todayStr = today.toISOString().split('T')[0];
+const mockBookings = [
+  { masterId: 1, date: todayStr, time: '10:00' },
+  { masterId: 1, date: todayStr, time: '14:00' },
+  { masterId: 2, date: todayStr, time: '11:00' },
+  { masterId: 2, date: todayStr, time: '15:00' },
+];
+
+function formatDate(date: Date): string {
+  return date.toISOString().split('T')[0];
+}
+
+function getDayName(date: Date): string {
+  const days = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+  return days[date.getDay()];
+}
+
+function getSlotsForDate(masterId: number, serviceDuration: number, date: string) {
+  const slotsNeeded = Math.ceil(serviceDuration / 30);
+  const bufferSlots = 1;
+  const allTimes: string[] = [];
+
+  for (let hour = 10; hour < 20; hour++) {
+    for (let min = 0; min < 60; min += 30) {
+      allTimes.push(`${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`);
+    }
+  }
+
+  const dayBookings = mockBookings.filter(b => b.masterId === masterId && b.date === date);
+  const occupied = new Set<string>();
+
+  for (const booking of dayBookings) {
+    const idx = allTimes.indexOf(booking.time);
+    if (idx === -1) continue;
+    for (let i = 0; i < slotsNeeded; i++) {
+      if (idx + i < allTimes.length) occupied.add(allTimes[idx + i]);
+    }
+    for (let i = 0; i < bufferSlots; i++) {
+      if (idx + slotsNeeded + i < allTimes.length) occupied.add(allTimes[idx + slotsNeeded + i]);
+    }
+  }
+
+  return allTimes.map(time => {
+    const startIdx = allTimes.indexOf(time);
+    let canFit = true;
+    const totalNeeded = slotsNeeded + bufferSlots;
+    for (let i = 0; i < totalNeeded; i++) {
+      const checkIdx = startIdx + i;
+      if (checkIdx >= allTimes.length || occupied.has(allTimes[checkIdx])) {
+        canFit = false;
+        break;
+      }
+    }
+    return { time, available: canFit && !occupied.has(time) };
+  });
+}
+
 function App() {
-  const [screen, setScreen] = useState<'services' | 'masters' | 'booking'>('services');
+  const [screen, setScreen] = useState<'services' | 'masters' | 'booking' | 'success'>('services');
   const [selectedService, setSelectedService] = useState<any>(null);
   const [selectedMaster, setSelectedMaster] = useState<any>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
   useEffect(() => {
     try {
       const tg = window.Telegram?.WebApp;
-      if (tg) {
-        tg.ready();
-        tg.expand();
-      }
+      if (tg) { tg.ready(); tg.expand(); }
     } catch (e) {}
   }, []);
 
+  const days = useMemo(() => {
+    return Array.from({ length: 14 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() + i);
+      return d;
+    });
+  }, []);
+
+  const slots = useMemo(() => {
+    if (!selectedDate || !selectedMaster || !selectedService) return [];
+    return getSlotsForDate(selectedMaster.id, selectedService.duration, selectedDate);
+  }, [selectedDate, selectedMaster, selectedService]);
+
   const goBack = () => {
-    if (screen === 'masters') {
-      setScreen('services');
-      setSelectedService(null);
-    } else if (screen === 'booking') {
-      setScreen('masters');
-      setSelectedMaster(null);
-    }
+    if (screen === 'masters') { setScreen('services'); setSelectedService(null); }
+    else if (screen === 'booking') { setScreen('masters'); setSelectedMaster(null); setSelectedDate(null); setSelectedTime(null); }
+  };
+
+  const handleConfirm = () => {
+    try { window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success'); } catch(e) {}
+    setScreen('success');
+  };
+
+  const handleNewBooking = () => {
+    setScreen('services');
+    setSelectedService(null);
+    setSelectedMaster(null);
+    setSelectedDate(null);
+    setSelectedTime(null);
   };
 
   return (
     <div style={{
-      minHeight: '100vh',
-      backgroundColor: '#1a1a1a',
-      color: '#ffffff',
-      padding: '20px',
-      fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif'
+      minHeight: '100vh', backgroundColor: '#1a1a1a', color: '#ffffff',
+      padding: '20px', fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif',
+      paddingBottom: '100px'
     }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
@@ -64,55 +141,28 @@ function App() {
       </div>
 
       {/* Back button */}
-      {screen !== 'services' && (
-        <button
-          onClick={goBack}
-          style={{
-            background: 'none', border: 'none', color: '#999',
-            fontSize: '14px', cursor: 'pointer', marginBottom: '16px',
-            display: 'flex', alignItems: 'center', gap: '4px'
-          }}
-        >
-          ← Назад
-        </button>
+      {screen !== 'services' && screen !== 'success' && (
+        <button onClick={goBack} style={{
+          background: 'none', border: 'none', color: '#999',
+          fontSize: '14px', cursor: 'pointer', marginBottom: '16px', padding: '4px 0'
+        }}>← Назад</button>
       )}
 
-      {/* Screen: Services */}
+      {/* SCREEN: Services */}
       {screen === 'services' && (
         <>
-          <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '4px' }}>
-            Выберите услугу
-          </h2>
-          <p style={{ color: '#999', fontSize: '14px', marginBottom: '20px' }}>
-            Что будем делать сегодня?
-          </p>
-
+          <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '4px' }}>Выберите услугу</h2>
+          <p style={{ color: '#999', fontSize: '14px', marginBottom: '20px' }}>Что будем делать сегодня?</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {services.map((service) => (
-              <div
-                key={service.id}
-                onClick={() => {
-                  setSelectedService(service);
-                  setScreen('masters');
-                  try { window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('medium'); } catch(e) {}
-                }}
-                style={{
-                  backgroundColor: '#242424',
-                  border: '1px solid #333',
-                  borderRadius: '16px',
-                  padding: '16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  cursor: 'pointer'
-                }}
-              >
-                <span style={{ fontSize: '32px' }}>{service.icon}</span>
+            {services.map((s) => (
+              <div key={s.id} onClick={() => { setSelectedService(s); setScreen('masters'); }}
+                style={{ backgroundColor: '#242424', border: '1px solid #333', borderRadius: '16px', padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
+                <span style={{ fontSize: '32px' }}>{s.icon}</span>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{service.name}</div>
-                  <div style={{ fontSize: '13px', color: '#999' }}>{service.duration} мин</div>
+                  <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{s.name}</div>
+                  <div style={{ fontSize: '13px', color: '#999' }}>{s.duration} мин</div>
                 </div>
-                <div style={{ color: '#c9a96e', fontWeight: 'bold' }}>{service.price} ₽</div>
+                <div style={{ color: '#c9a96e', fontWeight: 'bold' }}>{s.price} ₽</div>
                 <div style={{ color: '#666' }}>›</div>
               </div>
             ))}
@@ -120,10 +170,9 @@ function App() {
         </>
       )}
 
-      {/* Screen: Masters */}
+      {/* SCREEN: Masters */}
       {screen === 'masters' && selectedService && (
         <>
-          {/* Selected service badge */}
           <div style={{
             display: 'inline-flex', alignItems: 'center', gap: '8px',
             backgroundColor: '#242424', border: '1px solid #333',
@@ -133,51 +182,24 @@ function App() {
             <span style={{ fontSize: '14px' }}>{selectedService.name}</span>
             <span style={{ color: '#c9a96e', fontWeight: 'bold', fontSize: '14px' }}>{selectedService.price} ₽</span>
           </div>
-
-          <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '4px' }}>
-            Выберите мастера
-          </h2>
-          <p style={{ color: '#999', fontSize: '14px', marginBottom: '20px' }}>
-            Кто будет вас стричь?
-          </p>
-
+          <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '4px' }}>Выберите мастера</h2>
+          <p style={{ color: '#999', fontSize: '14px', marginBottom: '20px' }}>Кто будет вас стричь?</p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            {masters.map((master) => (
-              <div
-                key={master.id}
-                onClick={() => {
-                  setSelectedMaster(master);
-                  setScreen('booking');
-                  try { window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('medium'); } catch(e) {}
-                }}
-                style={{
-                  backgroundColor: '#242424',
-                  border: '1px solid #333',
-                  borderRadius: '16px',
-                  padding: '16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px',
-                  cursor: 'pointer'
-                }}
-              >
+            {masters.map((m) => (
+              <div key={m.id} onClick={() => { setSelectedMaster(m); setScreen('booking'); }}
+                style={{ backgroundColor: '#242424', border: '1px solid #333', borderRadius: '16px', padding: '16px', display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
                 <div style={{
                   width: '56px', height: '56px', borderRadius: '50%',
                   background: 'linear-gradient(135deg, #c9a96e, #8B6914)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: '22px', fontWeight: 'bold', flexShrink: 0
-                }}>{master.name[0]}</div>
+                }}>{m.name[0]}</div>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{master.name}</div>
-                  <div style={{ fontSize: '13px', color: '#999', marginBottom: '4px' }}>
-                    ★ {master.rating} • {master.experience} лет опыта
-                  </div>
+                  <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>{m.name}</div>
+                  <div style={{ fontSize: '13px', color: '#999', marginBottom: '4px' }}>★ {m.rating} • {m.experience} лет опыта</div>
                   <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    {master.specialties.map((spec, i) => (
-                      <span key={i} style={{
-                        fontSize: '11px', backgroundColor: '#1a1a1a',
-                        color: '#ccc', padding: '2px 8px', borderRadius: '10px'
-                      }}>{spec}</span>
+                    {m.specialties.map((spec, i) => (
+                      <span key={i} style={{ fontSize: '11px', backgroundColor: '#1a1a1a', color: '#ccc', padding: '2px 8px', borderRadius: '10px' }}>{spec}</span>
                     ))}
                   </div>
                 </div>
@@ -188,58 +210,181 @@ function App() {
         </>
       )}
 
-      {/* Screen: Booking (placeholder) */}
+      {/* SCREEN: Booking */}
       {screen === 'booking' && selectedService && selectedMaster && (
         <>
-          <h2 style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '4px' }}>
-            Запись
-          </h2>
-          <p style={{ color: '#999', fontSize: '14px', marginBottom: '20px' }}>
-            Выбор даты и времени
-          </p>
+          {/* Summary */}
+          <div style={{
+            backgroundColor: '#242424', border: '1px solid #333',
+            borderRadius: '16px', padding: '12px 16px', marginBottom: '20px',
+            display: 'flex', alignItems: 'center', gap: '12px'
+          }}>
+            <span style={{ fontSize: '24px' }}>{selectedService.icon}</span>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: '14px', fontWeight: 'bold' }}>{selectedService.name}</div>
+              <div style={{ fontSize: '12px', color: '#999' }}>с {selectedMaster.name} • {selectedService.duration} мин</div>
+            </div>
+            <div style={{
+              width: '32px', height: '32px', borderRadius: '50%',
+              background: 'linear-gradient(135deg, #c9a96e, #8B6914)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '14px', fontWeight: 'bold'
+            }}>{selectedMaster.name[0]}</div>
+          </div>
+
+          {/* Calendar */}
+          <h3 style={{ fontSize: '13px', color: '#999', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>
+            Выберите дату
+          </h3>
+          <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px', marginBottom: '24px' }}>
+            {days.map((day) => {
+              const dateStr = formatDate(day);
+              const isSelected = selectedDate === dateStr;
+              const isToday = dateStr === todayStr;
+              return (
+                <button key={dateStr} onClick={() => { setSelectedDate(dateStr); setSelectedTime(null); }}
+                  style={{
+                    flexShrink: 0, width: '56px', padding: '10px 0',
+                    borderRadius: '12px', border: isSelected ? 'none' : '1px solid #333',
+                    backgroundColor: isSelected ? '#c9a96e' : '#242424',
+                    color: isSelected ? '#fff' : '#ccc',
+                    cursor: 'pointer', display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', gap: '4px'
+                  }}>
+                  <span style={{ fontSize: '11px', color: isSelected ? 'rgba(255,255,255,0.7)' : '#666', textTransform: 'uppercase' }}>
+                    {getDayName(day)}
+                  </span>
+                  <span style={{ fontSize: '18px', fontWeight: 'bold' }}>{day.getDate()}</span>
+                  {isToday && (
+                    <span style={{ fontSize: '9px', color: isSelected ? 'rgba(255,255,255,0.7)' : '#c9a96e' }}>сегодня</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Time Slots */}
+          {selectedDate && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                <h3 style={{ fontSize: '13px', color: '#999', textTransform: 'uppercase', letterSpacing: '1px' }}>
+                  Выберите время
+                </h3>
+                <span style={{ fontSize: '12px', color: '#666' }}>
+                  {slots.filter(s => s.available).length} свободно
+                </span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '24px' }}>
+                {slots.map((slot) => {
+                  const isSelected = selectedTime === slot.time;
+                  return (
+                    <button key={slot.time}
+                      onClick={() => slot.available && setSelectedTime(slot.time)}
+                      disabled={!slot.available}
+                      style={{
+                        height: '44px', borderRadius: '12px',
+                        border: isSelected ? 'none' : slot.available ? '1px solid #333' : '1px solid transparent',
+                        backgroundColor: !slot.available ? '#111' : isSelected ? '#c9a96e' : '#242424',
+                        color: !slot.available ? '#555' : isSelected ? '#fff' : '#ccc',
+                        fontSize: '14px', fontWeight: '500',
+                        cursor: slot.available ? 'pointer' : 'not-allowed'
+                      }}>
+                      {slot.time}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {!selectedDate && (
+            <div style={{ textAlign: 'center', padding: '32px 0' }}>
+              <div style={{ fontSize: '32px', marginBottom: '8px' }}>📅</div>
+              <p style={{ color: '#999', fontSize: '14px' }}>Выберите дату для просмотра слотов</p>
+            </div>
+          )}
+
+          {/* Selected summary */}
+          {selectedDate && selectedTime && (
+            <div style={{
+              backgroundColor: 'rgba(201, 169, 110, 0.1)',
+              border: '1px solid rgba(201, 169, 110, 0.3)',
+              borderRadius: '16px', padding: '16px', marginBottom: '16px',
+              display: 'flex', alignItems: 'center', gap: '12px'
+            }}>
+              <div style={{
+                width: '32px', height: '32px', borderRadius: '50%',
+                backgroundColor: 'rgba(201, 169, 110, 0.2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>🕐</div>
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff' }}>{selectedDate}</div>
+                <div style={{ fontSize: '12px', color: '#c9a96e' }}>в {selectedTime} • {selectedMaster.name}</div>
+              </div>
+            </div>
+          )}
+
+          {/* Book button */}
+          <button
+            onClick={handleConfirm}
+            disabled={!selectedTime}
+            style={{
+              width: '100%', padding: '18px',
+              borderRadius: '16px', border: 'none',
+              backgroundColor: selectedTime ? '#c9a96e' : '#333',
+              color: selectedTime ? '#fff' : '#666',
+              fontSize: '16px', fontWeight: 'bold',
+              cursor: selectedTime ? 'pointer' : 'not-allowed',
+              boxShadow: selectedTime ? '0 10px 30px rgba(201, 169, 110, 0.3)' : 'none'
+            }}
+          >
+            {selectedTime ? `ЗАПИСАТЬСЯ на ${selectedTime}` : 'Выберите время'}
+          </button>
+        </>
+      )}
+
+      {/* SCREEN: Success */}
+      {screen === 'success' && selectedService && selectedMaster && selectedDate && selectedTime && (
+        <div style={{ textAlign: 'center', paddingTop: '40px' }}>
+          <div style={{
+            width: '80px', height: '80px', borderRadius: '50%',
+            background: 'linear-gradient(135deg, #4ade80, #16a34a)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 24px', fontSize: '36px'
+          }}>✓</div>
+          <h2 style={{ fontSize: '22px', fontWeight: 'bold', marginBottom: '8px' }}>Вы записаны!</h2>
+          <p style={{ color: '#999', marginBottom: '32px' }}>Ждём вас в барбершопе</p>
 
           <div style={{
             backgroundColor: '#242424', border: '1px solid #333',
-            borderRadius: '16px', padding: '16px', marginBottom: '16px'
+            borderRadius: '16px', padding: '20px', textAlign: 'left', marginBottom: '24px'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <span style={{ fontSize: '24px' }}>{selectedService.icon}</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontWeight: 'bold' }}>{selectedService.name}</div>
-                <div style={{ fontSize: '13px', color: '#999' }}>
-                  с {selectedMaster.name} • {selectedService.duration} мин
-                </div>
-              </div>
-              <div style={{ color: '#c9a96e', fontWeight: 'bold' }}>{selectedService.price} ₽</div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <span style={{ color: '#999', fontSize: '14px' }}>Услуга</span>
+              <span style={{ fontWeight: 'bold' }}>{selectedService.icon} {selectedService.name}</span>
+            </div>
+            <div style={{ borderTop: '1px solid #333', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <span style={{ color: '#999', fontSize: '14px' }}>Мастер</span>
+              <span style={{ fontWeight: 'bold' }}>{selectedMaster.name}</span>
+            </div>
+            <div style={{ borderTop: '1px solid #333', paddingTop: '12px', display: 'flex', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <span style={{ color: '#999', fontSize: '14px' }}>Дата и время</span>
+              <span style={{ fontWeight: 'bold' }}>{selectedDate} в {selectedTime}</span>
+            </div>
+            <div style={{ borderTop: '1px solid #333', paddingTop: '12px', display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: '#999', fontSize: '14px' }}>Стоимость</span>
+              <span style={{ fontWeight: 'bold', color: '#c9a96e', fontSize: '18px' }}>{selectedService.price} ₽</span>
             </div>
           </div>
 
-          <div style={{
-            backgroundColor: '#242424', border: '1px solid #c9a96e',
-            borderRadius: '16px', padding: '20px', textAlign: 'center'
+          <button onClick={handleNewBooking} style={{
+            width: '100%', padding: '16px', backgroundColor: '#c9a96e',
+            color: '#fff', border: 'none', borderRadius: '12px',
+            fontSize: '16px', fontWeight: 'bold', cursor: 'pointer'
           }}>
-            <div style={{ fontSize: '32px', marginBottom: '8px' }}>📅</div>
-            <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>Скоро здесь будет календарь</div>
-            <div style={{ fontSize: '13px', color: '#999' }}>
-              Вы выбрали: {selectedService.name} у мастера {selectedMaster.name}
-            </div>
-          </div>
-
-          <button
-            onClick={() => {
-              try { window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success'); } catch(e) {}
-              alert('Запись подтверждена! (пока в разработке)');
-            }}
-            style={{
-              width: '100%', padding: '16px', marginTop: '24px',
-              backgroundColor: '#c9a96e', color: '#ffffff',
-              border: 'none', borderRadius: '12px',
-              fontSize: '16px', fontWeight: 'bold', cursor: 'pointer'
-            }}
-          >
-            ЗАПИСАТЬСЯ
+            Записать ещё
           </button>
-        </>
+        </div>
       )}
     </div>
   );
