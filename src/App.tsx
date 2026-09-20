@@ -10,11 +10,14 @@ const services = [
   { id: 1, icon: '✂️', name: 'Мужская стрижка', price: 1500, duration: 60 },
   { id: 2, icon: '🪒', name: 'Моделирование бороды', price: 800, duration: 30 },
   { id: 3, icon: '👑', name: 'Комплекс Брутальный', price: 2000, duration: 90 },
+  { id: 4, icon: '🧔', name: 'Камуфляж седины', price: 1200, duration: 45 },
 ];
 
 const masters = [
   { id: 1, name: 'Алекс', rating: 4.9, experience: 7, specialties: ['Фейды', 'Классика', 'Бороды'] },
   { id: 2, name: 'Иван', rating: 4.8, experience: 5, specialties: ['Креатив', 'Длинные волосы', 'Камуфляж'] },
+  { id: 3, name: 'Виктор', rating: 5.0, experience: 2, specialties: ['Фейд', 'Окрашивание', 'Запрос стрижки!'] },
+  
 ];
 
 const today = new Date();
@@ -483,4 +486,4 @@ function App() {
   );
 }
 
-export default App;
+export default App;s
