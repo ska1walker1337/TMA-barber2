@@ -1,7 +1,12 @@
+declare global {
+  interface Window {
+    Telegram?: any;
+  }
+}
+
 export const tg = window.Telegram?.WebApp;
 
 export const initTelegram = () => {
-  // НЕ вызываем setHeaderColor и setBackgroundColor!
   if (tg) {
     tg.ready();
     tg.expand();
