@@ -17,7 +17,6 @@ const masters = [
   { id: 2, name: 'Иван', rating: 4.8, experience: 5, specialties: ['Креатив', 'Длинные волосы', 'Камуфляж'] },
 ];
 
-// Мок-записи (занятые слоты)
 const today = new Date();
 const todayStr = today.toISOString().split('T')[0];
 const mockBookings = [
@@ -40,16 +39,13 @@ function getSlotsForDate(masterId: number, serviceDuration: number, date: string
   const slotsNeeded = Math.ceil(serviceDuration / 30);
   const bufferSlots = 1;
   const allTimes: string[] = [];
-
   for (let hour = 10; hour < 20; hour++) {
     for (let min = 0; min < 60; min += 30) {
       allTimes.push(`${hour.toString().padStart(2, '0')}:${min.toString().padStart(2, '0')}`);
     }
   }
-
   const dayBookings = mockBookings.filter(b => b.masterId === masterId && b.date === date);
   const occupied = new Set<string>();
-
   for (const booking of dayBookings) {
     const idx = allTimes.indexOf(booking.time);
     if (idx === -1) continue;
@@ -60,7 +56,6 @@ function getSlotsForDate(masterId: number, serviceDuration: number, date: string
       if (idx + slotsNeeded + i < allTimes.length) occupied.add(allTimes[idx + slotsNeeded + i]);
     }
   }
-
   return allTimes.map(time => {
     const startIdx = allTimes.indexOf(time);
     let canFit = true;
@@ -82,6 +77,9 @@ function App() {
   const [selectedMaster, setSelectedMaster] = useState<any>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [agreed, setAgreed] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     try {
@@ -108,9 +106,22 @@ function App() {
     else if (screen === 'booking') { setScreen('masters'); setSelectedMaster(null); setSelectedDate(null); setSelectedTime(null); }
   };
 
+  const handleBookClick = () => {
+    if (!selectedTime) return;
+    try { window.Telegram?.WebApp?.HapticFeedback?.impactOccurred('medium'); } catch(e) {}
+    setAgreed(false);
+    setShowModal(true);
+  };
+
   const handleConfirm = () => {
+    if (!agreed || submitting) return;
+    setSubmitting(true);
     try { window.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success'); } catch(e) {}
-    setScreen('success');
+    setTimeout(() => {
+      setSubmitting(false);
+      setShowModal(false);
+      setScreen('success');
+    }, 800);
   };
 
   const handleNewBooking = () => {
@@ -213,7 +224,6 @@ function App() {
       {/* SCREEN: Booking */}
       {screen === 'booking' && selectedService && selectedMaster && (
         <>
-          {/* Summary */}
           <div style={{
             backgroundColor: '#242424', border: '1px solid #333',
             borderRadius: '16px', padding: '12px 16px', marginBottom: '20px',
@@ -232,10 +242,7 @@ function App() {
             }}>{selectedMaster.name[0]}</div>
           </div>
 
-          {/* Calendar */}
-          <h3 style={{ fontSize: '13px', color: '#999', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>
-            Выберите дату
-          </h3>
+          <h3 style={{ fontSize: '13px', color: '#999', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '12px' }}>Выберите дату</h3>
           <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '8px', marginBottom: '24px' }}>
             {days.map((day) => {
               const dateStr = formatDate(day);
@@ -251,36 +258,25 @@ function App() {
                     cursor: 'pointer', display: 'flex', flexDirection: 'column',
                     alignItems: 'center', gap: '4px'
                   }}>
-                  <span style={{ fontSize: '11px', color: isSelected ? 'rgba(255,255,255,0.7)' : '#666', textTransform: 'uppercase' }}>
-                    {getDayName(day)}
-                  </span>
+                  <span style={{ fontSize: '11px', color: isSelected ? 'rgba(255,255,255,0.7)' : '#666', textTransform: 'uppercase' }}>{getDayName(day)}</span>
                   <span style={{ fontSize: '18px', fontWeight: 'bold' }}>{day.getDate()}</span>
-                  {isToday && (
-                    <span style={{ fontSize: '9px', color: isSelected ? 'rgba(255,255,255,0.7)' : '#c9a96e' }}>сегодня</span>
-                  )}
+                  {isToday && <span style={{ fontSize: '9px', color: isSelected ? 'rgba(255,255,255,0.7)' : '#c9a96e' }}>сегодня</span>}
                 </button>
               );
             })}
           </div>
 
-          {/* Time Slots */}
           {selectedDate && (
             <>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h3 style={{ fontSize: '13px', color: '#999', textTransform: 'uppercase', letterSpacing: '1px' }}>
-                  Выберите время
-                </h3>
-                <span style={{ fontSize: '12px', color: '#666' }}>
-                  {slots.filter(s => s.available).length} свободно
-                </span>
+                <h3 style={{ fontSize: '13px', color: '#999', textTransform: 'uppercase', letterSpacing: '1px' }}>Выберите время</h3>
+                <span style={{ fontSize: '12px', color: '#666' }}>{slots.filter(s => s.available).length} свободно</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '24px' }}>
                 {slots.map((slot) => {
                   const isSelected = selectedTime === slot.time;
                   return (
-                    <button key={slot.time}
-                      onClick={() => slot.available && setSelectedTime(slot.time)}
-                      disabled={!slot.available}
+                    <button key={slot.time} onClick={() => slot.available && setSelectedTime(slot.time)} disabled={!slot.available}
                       style={{
                         height: '44px', borderRadius: '12px',
                         border: isSelected ? 'none' : slot.available ? '1px solid #333' : '1px solid transparent',
@@ -304,11 +300,9 @@ function App() {
             </div>
           )}
 
-          {/* Selected summary */}
           {selectedDate && selectedTime && (
             <div style={{
-              backgroundColor: 'rgba(201, 169, 110, 0.1)',
-              border: '1px solid rgba(201, 169, 110, 0.3)',
+              backgroundColor: 'rgba(201, 169, 110, 0.1)', border: '1px solid rgba(201, 169, 110, 0.3)',
               borderRadius: '16px', padding: '16px', marginBottom: '16px',
               display: 'flex', alignItems: 'center', gap: '12px'
             }}>
@@ -318,26 +312,21 @@ function App() {
                 display: 'flex', alignItems: 'center', justifyContent: 'center'
               }}>🕐</div>
               <div>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff' }}>{selectedDate}</div>
+                <div style={{ fontSize: '14px', fontWeight: 'bold' }}>{selectedDate}</div>
                 <div style={{ fontSize: '12px', color: '#c9a96e' }}>в {selectedTime} • {selectedMaster.name}</div>
               </div>
             </div>
           )}
 
-          {/* Book button */}
-          <button
-            onClick={handleConfirm}
-            disabled={!selectedTime}
+          <button onClick={handleBookClick} disabled={!selectedTime}
             style={{
-              width: '100%', padding: '18px',
-              borderRadius: '16px', border: 'none',
+              width: '100%', padding: '18px', borderRadius: '16px', border: 'none',
               backgroundColor: selectedTime ? '#c9a96e' : '#333',
               color: selectedTime ? '#fff' : '#666',
               fontSize: '16px', fontWeight: 'bold',
               cursor: selectedTime ? 'pointer' : 'not-allowed',
               boxShadow: selectedTime ? '0 10px 30px rgba(201, 169, 110, 0.3)' : 'none'
-            }}
-          >
+            }}>
             {selectedTime ? `ЗАПИСАТЬСЯ на ${selectedTime}` : 'Выберите время'}
           </button>
         </>
@@ -381,9 +370,113 @@ function App() {
             width: '100%', padding: '16px', backgroundColor: '#c9a96e',
             color: '#fff', border: 'none', borderRadius: '12px',
             fontSize: '16px', fontWeight: 'bold', cursor: 'pointer'
+          }}>Записать ещё</button>
+        </div>
+      )}
+
+      {/* MODAL: Confirmation */}
+      {showModal && selectedService && selectedMaster && selectedDate && selectedTime && (
+        <div onClick={() => !submitting && setShowModal(false)}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.7)', zIndex: 100,
+            display: 'flex', alignItems: 'flex-end', justifyContent: 'center'
           }}>
-            Записать ещё
-          </button>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{
+              width: '100%', maxWidth: '480px',
+              backgroundColor: '#242424', borderTop: '1px solid #333',
+              borderRadius: '24px 24px 0 0', padding: '24px', paddingBottom: '32px'
+            }}>
+            {/* Handle */}
+            <div style={{ width: '40px', height: '4px', borderRadius: '2px', backgroundColor: '#444', margin: '0 auto 16px' }} />
+
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+              <div style={{
+                width: '48px', height: '48px', borderRadius: '12px',
+                backgroundColor: 'rgba(201, 169, 110, 0.2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px'
+              }}>{selectedService.icon}</div>
+              <div>
+                <div style={{ fontSize: '18px', fontWeight: 'bold' }}>Подтверждение записи</div>
+                <div style={{ fontSize: '12px', color: '#999' }}>Проверьте детали и подтвердите</div>
+              </div>
+            </div>
+
+            {/* Details */}
+            <div style={{ backgroundColor: '#1a1a1a', borderRadius: '16px', padding: '16px', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <span style={{ fontSize: '14px', color: '#999' }}>Услуга</span>
+                <span style={{ fontSize: '14px', fontWeight: '500' }}>{selectedService.name}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <span style={{ fontSize: '14px', color: '#999' }}>Мастер</span>
+                <span style={{ fontSize: '14px', fontWeight: '500' }}>{selectedMaster.name}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <span style={{ fontSize: '14px', color: '#999' }}>Дата и время</span>
+                <span style={{ fontSize: '14px', fontWeight: '500' }}>{selectedDate} в {selectedTime}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <span style={{ fontSize: '14px', color: '#999' }}>Длительность</span>
+                <span style={{ fontSize: '14px', fontWeight: '500' }}>{selectedService.duration} мин</span>
+              </div>
+              <div style={{ borderTop: '1px solid #333', paddingTop: '10px', display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: '14px', color: '#999' }}>Стоимость</span>
+                <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#c9a96e' }}>{selectedService.price} ₽</span>
+              </div>
+            </div>
+
+            {/* Warning */}
+            <div style={{
+              backgroundColor: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.2)',
+              borderRadius: '12px', padding: '12px', marginBottom: '20px',
+              display: 'flex', gap: '10px'
+            }}>
+              <span style={{ fontSize: '18px', flexShrink: 0 }}>⚠️</span>
+              <p style={{ fontSize: '12px', color: '#fbbf24', lineHeight: '1.5' }}>
+                Отказаться от услуги или отменить запись можно <b style={{ color: '#fcd34d' }}>не менее чем за 24 часа</b> до выбранного времени.
+              </p>
+            </div>
+
+            {/* Agreement checkbox */}
+            <div onClick={() => setAgreed(!agreed)}
+              style={{ display: 'flex', gap: '12px', marginBottom: '24px', cursor: 'pointer' }}>
+              <div style={{
+                width: '22px', height: '22px', borderRadius: '6px', flexShrink: 0,
+                border: agreed ? '2px solid #c9a96e' : '2px solid #666',
+                backgroundColor: agreed ? '#c9a96e' : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                marginTop: '2px'
+              }}>
+                {agreed && <span style={{ color: '#fff', fontSize: '14px', fontWeight: 'bold' }}>✓</span>}
+              </div>
+              <span style={{ fontSize: '14px', color: '#ccc', lineHeight: '1.5' }}>
+                Я ознакомлен(а) с условиями отмены и подтверждаю запись
+              </span>
+            </div>
+
+            {/* Buttons */}
+            <button onClick={handleConfirm} disabled={!agreed || submitting}
+              style={{
+                width: '100%', padding: '16px', borderRadius: '12px', border: 'none',
+                backgroundColor: agreed && !submitting ? '#c9a96e' : '#333',
+                color: agreed && !submitting ? '#fff' : '#666',
+                fontSize: '16px', fontWeight: 'bold',
+                cursor: agreed && !submitting ? 'pointer' : 'not-allowed',
+                marginBottom: '8px'
+              }}>
+              {submitting ? 'Оформляем...' : 'Подтвердить запись'}
+            </button>
+            <button onClick={() => !submitting && setShowModal(false)}
+              style={{
+                width: '100%', padding: '12px', background: 'none',
+                border: 'none', color: '#999', fontSize: '14px', cursor: 'pointer'
+              }}>
+              Отмена
+            </button>
+          </div>
         </div>
       )}
     </div>
