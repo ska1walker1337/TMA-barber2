@@ -17,7 +17,6 @@ const masters = [
   { id: 1, name: 'Алекс', rating: 4.9, experience: 7, specialties: ['Фейды', 'Классика', 'Бороды'] },
   { id: 2, name: 'Иван', rating: 4.8, experience: 5, specialties: ['Креатив', 'Длинные волосы', 'Камуфляж'] },
   { id: 3, name: 'Виктор', rating: 5.0, experience: 2, specialties: ['Фейд', 'Окрашивание', 'Запрос стрижки!'] },
-  
 ];
 
 const today = new Date();
@@ -486,4 +485,4 @@ function App() {
   );
 }
 
-export default App;s
+export default App;
