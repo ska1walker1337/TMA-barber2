@@ -7,7 +7,7 @@ declare global {
 }
 
 // ===== ВСТАВЬ СЮДА СВОЙ URL ОТ RENDER (без / на конце) =====
-const API_URL = 'https://barber-backend-e4v8.onrender.com/';
+const API_URL = 'https://barber-backend-e4v8.onrender.com';
 // ===========================================================
 
 interface Service {
